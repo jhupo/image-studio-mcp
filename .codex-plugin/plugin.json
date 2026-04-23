@@ -1,0 +1,45 @@
+{
+  "name": "image-studio-mcp",
+  "version": "0.1.0",
+  "description": "Codex plugin and local MCP server for OpenAI-compatible image generation and image editing.",
+  "author": {
+    "name": "jhupo",
+    "url": "https://github.com/jhupo/image-studio-mcp.git"
+  },
+  "homepage": "https://github.com/jhupo/image-studio-mcp.git",
+  "repository": "https://github.com/jhupo/image-studio-mcp.git",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "mcp",
+    "openai",
+    "images",
+    "gpt-image-2",
+    "image-editing"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Image Studio MCP",
+    "shortDescription": "Generate and edit images through a local MCP server",
+    "longDescription": "Image Studio MCP adds a local MCP server to Codex for image generation and image editing. Configure OPENAI_BASE_URL and OPENAI_API_KEY once, then create or modify images with OpenAI-compatible image endpoints and save the results directly to local files.",
+    "developerName": "Administrator",
+    "category": "Creativity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/jhupo/image-studio-mcp.git",
+    "privacyPolicyURL": "https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement",
+    "termsOfServiceURL": "https://docs.github.com/site-policy/github-terms/github-terms-of-service",
+    "defaultPrompt": [
+      "Use Image Studio MCP to turn this prompt into a polished image and save it into my workspace",
+      "Use Image Studio MCP to edit an existing image with a new prompt and keep the result locally",
+      "Help me generate multiple concept images with gpt-image-2 through the local MCP server"
+    ],
+    "brandColor": "#0F766E",
+    "composerIcon": "./assets/image-studio-mcp-small.svg",
+    "logo": "./assets/image-studio-mcp.svg",
+    "screenshots": []
+  }
+}

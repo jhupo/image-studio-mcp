@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "image-studio-mcp": {
+      "command": "node",
+      "args": [
+        "./scripts/openai-image-mcp.mjs"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "",
+        "OPENAI_BASE_URL": "https://dash.classicriver.cn/v1/",
+        "OPENAI_IMAGE_MODEL": "gpt-image-2"
+      }
+    }
+  }
+}

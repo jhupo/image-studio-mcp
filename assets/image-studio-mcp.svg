@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title>OpenAI Image Studio</title>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#042F2E" />
+      <stop offset="100%" stop-color="#0F766E" />
+    </linearGradient>
+    <linearGradient id="lens" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F0FDFA" />
+      <stop offset="100%" stop-color="#99F6E4" />
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)" />
+  <rect x="42" y="54" width="172" height="148" rx="24" fill="#0B3B39" stroke="#5EEAD4" stroke-width="10" />
+  <circle cx="128" cy="128" r="34" fill="url(#lens)" />
+  <path d="M68 182l34-38 22 24 24-18 40 32H68z" fill="#5EEAD4" opacity="0.92" />
+  <circle cx="176" cy="92" r="12" fill="#CCFBF1" />
+</svg>

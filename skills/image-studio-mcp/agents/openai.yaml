@@ -1,0 +1,7 @@
+interface:
+  display_name: "Image Studio MCP"
+  short_description: "Generate and edit images through the bundled MCP server"
+  icon_small: "./assets/image-studio-mcp-small.svg"
+  icon_large: "./assets/image-studio-mcp.svg"
+  brand_color: "#0F766E"
+  default_prompt: "Use $image-studio-mcp to generate or edit an image and save the result into my workspace."

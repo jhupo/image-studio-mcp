@@ -1,0 +1,14 @@
+{
+  "name": "image-studio-mcp",
+  "version": "0.1.0",
+  "description": "Local MCP server for OpenAI-compatible image generation and edits",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node ./scripts/openai-image-mcp.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "zod": "4.1.12"
+  }
+}

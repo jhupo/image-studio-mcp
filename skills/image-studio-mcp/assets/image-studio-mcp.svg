@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title>OpenAI Image Studio Skill</title>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#042F2E" />
+      <stop offset="100%" stop-color="#0F766E" />
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)" />
+  <rect x="44" y="52" width="168" height="152" rx="24" fill="#083D3A" stroke="#99F6E4" stroke-width="10" />
+  <circle cx="128" cy="124" r="36" fill="#CCFBF1" />
+  <path d="M72 180l32-38 22 22 24-18 34 34H72z" fill="#5EEAD4" />
+</svg>
