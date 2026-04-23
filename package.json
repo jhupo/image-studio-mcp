@@ -5,7 +5,9 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "start": "node ./scripts/openai-image-mcp.mjs"
+    "start": "node ./scripts/openai-image-mcp.mjs",
+    "validate": "node --check ./scripts/openai-image-mcp.mjs && node ./scripts/validate-mcp.mjs",
+    "smoke:test": "node ./scripts/smoke-test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",

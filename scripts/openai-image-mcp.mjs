@@ -12,6 +12,7 @@ const SERVER_NAME = "image-studio-mcp";
 const SERVER_VERSION = "0.1.0";
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_MODEL = "gpt-image-2";
+const DEFAULT_REQUEST_TIMEOUT_MS = 240000;
 const SUPPORTED_OUTPUT_FORMATS = new Set(["png", "jpeg", "webp"]);
 
 const __filename = fileURLToPath(import.meta.url);
@@ -20,6 +21,16 @@ const pluginRoot = path.resolve(__dirname, "..");
 
 function normalizeBaseUrl(rawBaseUrl = DEFAULT_BASE_URL) {
   return rawBaseUrl.replace(/\/+$/, "");
+}
+
+function getRequestTimeoutMs() {
+  const parsed = Number(process.env.OPENAI_IMAGE_TIMEOUT_MS || DEFAULT_REQUEST_TIMEOUT_MS);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_REQUEST_TIMEOUT_MS;
+  }
+
+  return parsed;
 }
 
 function getConfig() {
@@ -154,6 +165,7 @@ async function callJsonImagesEndpoint(endpointPath, body) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(getRequestTimeoutMs()),
   });
 
   return parseApiResponse(response);
@@ -167,23 +179,46 @@ async function callMultipartImagesEndpoint(endpointPath, formData) {
       "Authorization": `Bearer ${apiKey}`,
     },
     body: formData,
+    signal: AbortSignal.timeout(getRequestTimeoutMs()),
   });
 
   return parseApiResponse(response);
 }
 
 async function parseApiResponse(response) {
-  const payload = await response.json().catch(() => null);
+  const rawText = await response.text();
+  let payload = null;
+
+  if (rawText) {
+    try {
+      payload = JSON.parse(rawText);
+    } catch {
+      payload = null;
+    }
+  }
 
   if (!response.ok) {
     const message =
       payload?.error?.message ||
       payload?.message ||
       `OpenAI image request failed with status ${response.status}`;
-    throw new Error(message);
+    throw new Error(enrichHttpErrorMessage(message, response.status, rawText));
   }
 
   return payload;
+}
+
+function enrichHttpErrorMessage(message, status, rawText) {
+  if (!rawText) {
+    return message;
+  }
+
+  if (status === 524) {
+    return "Upstream gateway timed out with HTTP 524. The image job likely ran too long. Try a shorter prompt, lower quality, a smaller image size, or a longer OPENAI_IMAGE_TIMEOUT_MS value.";
+  }
+
+  const snippet = rawText.replace(/\s+/g, " ").trim().slice(0, 180);
+  return snippet ? `${message}. Response preview: ${snippet}` : message;
 }
 
 async function persistImageOutput(item, { outputDir, fileStem, index, requestedFormat }) {
@@ -199,7 +234,9 @@ async function persistImageOutput(item, { outputDir, fileStem, index, requestedF
   }
 
   if (item?.url) {
-    const response = await fetch(item.url);
+    const response = await fetch(item.url, {
+      signal: AbortSignal.timeout(getRequestTimeoutMs()),
+    });
     if (!response.ok) {
       throw new Error(`Failed to download generated image from ${item.url}`);
     }

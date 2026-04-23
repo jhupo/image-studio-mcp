@@ -33,12 +33,21 @@ Repository:
   Optional. Defaults to `https://dash.classicriver.cn/v1/`.
 - `OPENAI_IMAGE_MODEL`
   Optional. Defaults to `gpt-image-2`.
+- `OPENAI_IMAGE_TIMEOUT_MS`
+  Optional. Defaults to `240000`. Increase this if your gateway or upstream image model is slow.
 
 ## Local setup
 
 ```bash
 npm install
 node ./scripts/openai-image-mcp.mjs
+```
+
+Helpful development commands:
+
+```bash
+npm run validate
+npm run smoke:test
 ```
 
 The server uses stdio transport, so it is normally launched by an MCP host instead of manually.
@@ -140,3 +149,25 @@ You can also validate the skill:
 ```bash
 python C:/Users/Administrator/.codex/skills/.system/skill-creator/scripts/quick_validate.py ./skills/image-studio-mcp
 ```
+
+## Troubleshooting
+
+### HTTP 524 from Cloudflare or another gateway
+
+If your gateway returns `524`, the upstream image request took too long.
+
+Try these fixes:
+
+- shorten the prompt
+- lower `quality`
+- reduce `size`
+- increase `OPENAI_IMAGE_TIMEOUT_MS`
+- retry through a less overloaded gateway
+
+### HTML page instead of JSON API response
+
+If `OPENAI_BASE_URL` points at a dashboard homepage instead of an API path, the server may receive HTML instead of JSON.
+
+Use an API base URL such as:
+
+- `https://dash.classicriver.cn/v1/`
