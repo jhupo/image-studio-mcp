@@ -1,93 +1,122 @@
 # image-studio-mcp
 
-中文：`image-studio-mcp` 是一个本地 MCP server，同时带有 Codex 插件与 skill，用来通过 OpenAI 兼容图片接口做生图和改图。
-
-English: `image-studio-mcp` is a local MCP server with a Codex plugin and companion skill for image generation and image editing through OpenAI-compatible image APIs.
+中文：`image-studio-mcp` 是一个本地 `stdio` MCP server，带 Codex 插件元数据和配套 skill，用来调用 OpenAI 兼容图片接口，完成生图和改图。  
+English: `image-studio-mcp` is a local `stdio` MCP server with Codex plugin metadata and a companion skill for image generation and image editing through OpenAI-compatible image APIs.
 
 Repository:
 
-- `https://github.com/jhupo/image-studio-mcp.git`
+- [https://github.com/jhupo/image-studio-mcp.git](https://github.com/jhupo/image-studio-mcp.git)
 
-## 功能 Features
+## Features
 
-- 文生图 / Text-to-image with `generate_image`
-- 改图 / Image editing with `edit_image`
-- 支持多图输入 / Optional multi-image input
-- 支持 mask 改图 / Optional mask-based editing
-- 可配置 `OPENAI_BASE_URL`
-- 可配置 `OPENAI_API_KEY`
-- 可配置 `OPENAI_IMAGE_MODEL`
-- 图片直接保存到本地文件 / Saves images directly to local files
-- 自带 Codex 插件配置和 skill / Includes Codex plugin metadata and skill
+- `generate_image` for text-to-image
+- `edit_image` for image edits, multi-image edits, and optional mask edits
+- `image_studio_doctor` for connectivity and configuration checks
+- Configurable `OPENAI_BASE_URL`
+- Configurable `OPENAI_API_KEY`
+- Configurable `OPENAI_IMAGE_MODEL`
+- Local file output
+- Codex plugin metadata plus skill
 
-## 环境要求 Requirements
+## Requirements
 
 - `Node.js 20+`
-- 一个可用的 OpenAI 兼容图片接口 key / An API key for an OpenAI-compatible image endpoint
+- An API key for an OpenAI-compatible image endpoint
 
-## 环境变量 Environment Variables
+## Environment Variables
 
 - `OPENAI_API_KEY`
-  中文：必填，图片接口使用的 key。
-  English: Required. API key used for the image endpoint.
+  中文：必填，图片接口用到的 key。  
+  English: Required. API key for the image endpoint.
 - `OPENAI_BASE_URL`
-  中文：可选，默认是 `https://dash.classicriver.cn/v1/`。
-  English: Optional. Defaults to `https://dash.classicriver.cn/v1/`.
+  中文：可选，默认是 `https://api.openai.com/v1`。  
+  English: Optional. Defaults to `https://api.openai.com/v1`.
 - `OPENAI_IMAGE_MODEL`
-  中文：可选，默认是 `gpt-image-2`。
+  中文：可选，默认是 `gpt-image-2`。  
   English: Optional. Defaults to `gpt-image-2`.
 - `OPENAI_IMAGE_TIMEOUT_MS`
-  中文：可选，默认 `240000`，网关慢时可以调大。
-  English: Optional. Defaults to `240000`. Increase this if your gateway or upstream image model is slow.
+  中文：可选，默认 `240000`，代理慢或上游慢时可以调大。  
+  English: Optional. Defaults to `240000`. Increase it if your gateway or upstream image model is slow.
 
-## 本地运行 Local Setup
+## Local Setup
 
 ```bash
 npm install
+npm run validate
+```
+
+```bash
 node ./scripts/openai-image-mcp.mjs
 ```
 
-开发时常用命令 / Helpful development commands:
+Helpful commands:
 
 ```bash
-npm run validate
+npm run doctor
+```
+
+```bash
 npm run smoke:test
 ```
 
-中文：这个 server 用的是 `stdio` transport，通常由 MCP 宿主拉起，不是手动常驻运行。
+中文：这个 server 用的是 `stdio` transport，通常由 MCP 宿主拉起，不是手工常驻运行。  
+English: This server uses `stdio` transport and is normally launched by an MCP host instead of being run manually.
 
-English: The server uses `stdio` transport and is normally launched by an MCP host instead of being run manually.
+## What `image_studio_doctor` Checks
 
-## 在 Codex 中安装 Install In Codex
+中文：
 
-这个仓库已经自带 Codex 需要的文件 / This repo already includes the Codex files:
+- 当前宿主是否已经能调用这个 MCP server
+- 当前 server 进程是否拿到了 `OPENAI_API_KEY`
+- 当前 `OPENAI_BASE_URL`
+- 当前 `OPENAI_IMAGE_MODEL`
+- `/models` 是否可达
+- 网关返回了哪些模型
+- 配置中的模型是否出现在 `/models` 结果里
+
+English:
+
+- whether the current host can already call this MCP server
+- whether the server process can see `OPENAI_API_KEY`
+- which `OPENAI_BASE_URL` is active
+- which `OPENAI_IMAGE_MODEL` is configured
+- whether `/models` is reachable
+- which models the gateway reports
+- whether the configured model appears in `/models`
+
+中文：如果你想做一次真实、计费的端到端探测，可以在调用 `image_studio_doctor` 时传 `probe_generation=true`。  
+English: If you want a real billable end-to-end probe, call `image_studio_doctor` with `probe_generation=true`.
+
+## Install In Codex
+
+This repo already includes:
 
 - `.codex-plugin/plugin.json`
 - `.mcp.json`
 - `skills/image-studio-mcp/SKILL.md`
 
-如果你要安装到别的 Codex 工作区 / If you want to install it into another Codex workspace:
+To install into another Codex workspace:
 
-1. 复制 `image-studio-mcp` 目录到目标工作区的 `plugins/` 目录。
-   Copy the `image-studio-mcp` folder into the target workspace `plugins/` directory.
-2. 在插件目录执行 `npm install`。
-   Run `npm install` inside the plugin directory.
-3. 在本地 MCP 配置里设置 `OPENAI_API_KEY`。
-   Set `OPENAI_API_KEY` in the local MCP config.
-4. 不要把真实 key 提交进仓库。
-   Do not commit a real API key into the repository.
-5. 按需修改 `OPENAI_BASE_URL` 和 `OPENAI_IMAGE_MODEL`。
-   Optionally change `OPENAI_BASE_URL` and `OPENAI_IMAGE_MODEL`.
-6. 确保 marketplace 指向 `./plugins/image-studio-mcp`。
-   Make sure the marketplace points to `./plugins/image-studio-mcp`.
+1. Copy the `image-studio-mcp` folder into the target workspace `plugins/` directory.
+2. Run `npm install` inside that plugin directory.
+3. Set `OPENAI_API_KEY` in the local MCP configuration.
+4. Optionally adjust `OPENAI_BASE_URL` and `OPENAI_IMAGE_MODEL`.
+5. Make sure the marketplace entry points to `./plugins/image-studio-mcp`.
+6. Restart Codex if the plugin was added while the app was already open.
 
-## 在其他 MCP 宿主中安装 Install In Any MCP Host
+## Why It May Not Show In Codex MCP Settings
 
-中文：只要宿主支持标准 MCP `stdio`，这个项目就能接入。
+中文：Codex 里“设置 -> MCP 服务器”通常看的是全局 `~/.codex/config.toml` 里的 `[mcp_servers.*]`，不一定会显示插件目录里的 `.mcp.json`。  
+English: In Codex, “Settings -> MCP servers” usually reflects global `[mcp_servers.*]` entries from `~/.codex/config.toml`, not necessarily plugin-local `.mcp.json` files.
 
-English: Any host that supports standard MCP `stdio` transport can use this project.
+中文：所以“插件能加载”不等于“它会出现在全局 MCP 列表里”。  
+English: That means “plugin installed” is not always the same as “visible in the global MCP settings list”.
 
-示例配置 / Example config:
+## Install In Any MCP Host
+
+Any host that supports standard MCP `stdio` transport can use this project.
+
+Example config:
 
 ```json
 {
@@ -108,72 +137,110 @@ English: Any host that supports standard MCP `stdio` transport can use this proj
 }
 ```
 
-可直接参考 / Copyable example:
+Copyable example:
 
 - `mcp.config.example.json`
 
-## 在 Codex 里怎么调用 How To Use It In Codex
+## Minimal Usage Examples
+
+### Official OpenAI-Compatible Example
+
+```json
+{
+  "prompt": "a glossy orange sports car under studio lights",
+  "output_dir": "C:/workspace/output",
+  "filename_prefix": "sports-car",
+  "count": 1,
+  "size": "1024x1024",
+  "output_format": "png"
+}
+```
+
+### Compatible Proxy Example
+
+```json
+{
+  "prompt": "a cyberpunk city girl with neon signs and rainy streets",
+  "output_dir": "C:/workspace/output",
+  "filename_prefix": "cyberpunk-girl",
+  "count": 1,
+  "size": "1024x1024",
+  "quality": "medium",
+  "output_format": "png"
+}
+```
+
+### Edit Example
+
+```json
+{
+  "prompt": "keep the subject, change the clothes to silver sci-fi armor",
+  "input_images": [
+    "C:/workspace/input/original.png"
+  ],
+  "output_dir": "C:/workspace/output",
+  "filename_prefix": "armor-edit",
+  "output_format": "png"
+}
+```
+
+## How To Use It In Codex
 
 中文：
 
-- 你可以直接说“给我生成一张图片”。
-- 更推荐明确描述需求，例如：
-  - “用 image-studio-mcp 给我生成一张横版科技海报，输出到工作区。”
-  - “帮我生成一张产品图，保存到 `C:\\...\\output`。”
-  - “用这张图继续改图，保留主体，换成赛博朋克风格。”
-- 如果插件和 skill 已加载，Codex 通常会自动选择 `generate_image` 或 `edit_image`。
-- 最稳的说法是同时告诉它：
-  - 目标内容
-  - 输出目录
-  - 是否要多张
-  - 是否基于现有图片改图
+- 可以直接说“给我生成一张图”。
+- 更稳的说法是同时告诉它：
+  - 生成什么
+  - 输出到哪里
+  - 要不要多张
+  - 是生图还是改图
+- 如果是第一次装好、第一次调用、或者刚切换代理，先让它跑 `image_studio_doctor`。
+- 如果当前宿主只有 skill 文本、没有真实 MCP 工具入口，模型应该明确告诉你“只检测到 skill，没有检测到可调用工具”，而不是假装自己能直接出图。
 
 English:
 
 - You can simply say “generate an image for me”.
-- It is better to be explicit, for example:
-  - “Use image-studio-mcp to generate a wide tech poster and save it into the workspace.”
-  - “Generate a product image and save it into `C:\\...\\output`.”
-  - “Edit this image, keep the subject, and switch it to a cyberpunk style.”
-- If the plugin and skill are loaded, Codex will usually choose `generate_image` or `edit_image` automatically.
-- The most reliable prompt includes:
+- It is more reliable to also specify:
   - what to generate
   - where to save it
   - whether you want multiple variants
   - whether this is text-to-image or image editing
+- If this is the first call after installation, the first call after switching proxies, or a previously failed setup, run `image_studio_doctor` first.
+- If the host only loaded the skill text but did not expose the actual MCP tools, the model should say that clearly instead of pretending image generation is callable.
 
-## 上下文会不会记住 Will Codex Remember The Context
+## Context Memory In Codex
 
 中文：
 
-- 会，但范围是“当前对话线程上下文”，不是永久记忆。
-- 也就是说，在同一条对话里，你前面生成过什么图、用过什么提示词、输出到哪里，Codex 一般还能接着用。
-- 如果你开了新对话，或者线程被清空、压缩、重启，这些上下文不一定还在。
-- 最稳妥的方式是：
-  - 让 Codex 把图片保存到明确路径
-  - 后续继续说“基于刚才那张图继续改”，或者直接给文件路径
-- 对图片本身，最可靠的引用方式仍然是“文件路径”或“重新附图”，不要只依赖口头描述。
+- 会记住，但主要是当前对话线程里的上下文，不是永久记忆。
+- 新对话、上下文压缩、重启后，之前的图片任务细节可能不在。
+- 最稳的做法是让图片保存到明确路径，并在后续继续引用那个路径。
 
 English:
 
-- Yes, but only within the current conversation context, not as permanent memory.
-- In the same thread, Codex can usually continue from the previous image request, prompt, and output path.
-- In a new thread, after context compaction, or after a restart, that context may not still be available.
-- The safest workflow is:
-  - save images to a clear path
-  - refer to the previous result explicitly
-  - pass the file path again when needed
-- For image editing, file paths or re-attached images are more reliable than relying on conversational memory alone.
+- Yes, but mostly within the current conversation thread, not as permanent memory.
+- After a new thread, context compaction, or a restart, earlier image-task details may no longer be available.
+- The safest pattern is to save outputs to a clear path and refer to that path again later.
 
-## 工具 Tools
+## Tools
+
+### `image_studio_doctor`
+
+中文：做安装后自检、配置排查、代理排查。  
+English: Runs installation, configuration, and proxy troubleshooting checks.
+
+Important inputs:
+
+- `probe_generation`
+- `probe_prompt`
+- `models_preview_limit`
 
 ### `generate_image`
 
-中文：根据提示词生成一张或多张图片。
-
+中文：根据提示词生成一张或多张图片。  
 English: Generates one or more images from a prompt.
 
-重要参数 / Important inputs:
+Important inputs:
 
 - `prompt`
 - `output_dir`
@@ -186,11 +253,10 @@ English: Generates one or more images from a prompt.
 
 ### `edit_image`
 
-中文：基于一张或多张现有图片进行改图。
-
+中文：基于一张或多张已有图片进行改图。  
 English: Edits one or more existing source images from a prompt.
 
-重要参数 / Important inputs:
+Important inputs:
 
 - `prompt`
 - `input_images`
@@ -203,13 +269,33 @@ English: Edits one or more existing source images from a prompt.
 - `background`
 - `output_format`
 
-## 开源命名说明 Open-Source Naming Note
+## Error Guide
 
-中文：公开发布时，`image-studio-mcp` 比 `openai-image-studio` 更安全，不容易被误解成官方项目。
+- `401 invalid_api_key`
+  中文：认证失败，通常是 key 不对、key 对这个代理不可用、或者上游没有授权。  
+  English: Authentication failed. The key is wrong, not valid for this gateway, or lacks upstream access.
+- `404`
+  中文：路径大概率不对，常见原因是 `OPENAI_BASE_URL` 没写到 `/v1`。  
+  English: Usually a path problem. A common cause is `OPENAI_BASE_URL` not ending at `/v1`.
+- `429`
+  中文：代理或上游限流了。  
+  English: The proxy or upstream account is rate-limited.
+- `524`
+  中文：代理等上游太久超时了。  
+  English: The proxy timed out while waiting for the upstream image job.
+- `No available compatible accounts`
+  中文：代理当前没有可用的图像账号资源。  
+  English: The proxy currently has no available upstream image accounts.
+- HTML instead of JSON
+  中文：通常说明 `OPENAI_BASE_URL` 指到了网页，不是 API。  
+  English: Usually means `OPENAI_BASE_URL` points to a dashboard page, not an API endpoint.
 
-English: For public distribution, `image-studio-mcp` is safer than `openai-image-studio` because it avoids looking like an official product.
+## Security Note
 
-## 验证 Validation
+中文：不要把真实 key 提交进 Git，也不要到处手填进命令历史。优先通过 MCP 宿主的环境变量或本地私有配置注入。  
+English: Do not commit a real key into Git and avoid pasting it into shell history. Prefer environment variables or private local host configuration.
+
+## Validation
 
 ```bash
 node --check ./scripts/openai-image-mcp.mjs
@@ -220,41 +306,15 @@ npm run validate
 ```
 
 ```bash
+npm run doctor
+```
+
+```bash
 npm run smoke:test
 ```
 
-中文：做真实接口验证时，建议从本地 shell 或宿主配置注入 `OPENAI_API_KEY`，不要把 key 写进 Git 跟踪文件。
-
-English: For real API validation, inject `OPENAI_API_KEY` from your local shell or host config instead of storing it in tracked files.
-
-skill 校验 / Skill validation:
+Skill validation:
 
 ```bash
 python C:/Users/Administrator/.codex/skills/.system/skill-creator/scripts/quick_validate.py ./skills/image-studio-mcp
 ```
-
-## 故障排查 Troubleshooting
-
-### `524` 超时 / HTTP 524 Timeout
-
-中文：如果网关返回 `524`，通常说明上游图片任务执行太久。
-
-English: If the gateway returns `524`, the upstream image job took too long.
-
-可以尝试 / Try:
-
-- 缩短提示词 / shorten the prompt
-- 降低 `quality` / lower `quality`
-- 降低 `size` / reduce `size`
-- 增大 `OPENAI_IMAGE_TIMEOUT_MS` / increase `OPENAI_IMAGE_TIMEOUT_MS`
-- 换一个负载更低的网关 / retry through a less overloaded gateway
-
-### 返回 HTML 而不是 JSON / HTML Instead Of JSON
-
-中文：如果 `OPENAI_BASE_URL` 指到了网页首页而不是 API 路径，服务端可能会收到 HTML。
-
-English: If `OPENAI_BASE_URL` points to a dashboard homepage instead of an API path, the server may receive HTML instead of JSON.
-
-正确示例 / Example:
-
-- `https://dash.classicriver.cn/v1/`

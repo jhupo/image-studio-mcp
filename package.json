@@ -1,11 +1,12 @@
 {
   "name": "image-studio-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Local MCP server for OpenAI-compatible image generation and edits",
   "type": "module",
   "private": true,
   "scripts": {
     "start": "node ./scripts/openai-image-mcp.mjs",
+    "doctor": "node ./scripts/doctor.mjs",
     "validate": "node --check ./scripts/openai-image-mcp.mjs && node ./scripts/validate-mcp.mjs",
     "smoke:test": "node ./scripts/smoke-test.mjs"
   },

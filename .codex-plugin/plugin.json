@@ -1,6 +1,6 @@
 {
   "name": "image-studio-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Codex plugin and local MCP server for OpenAI-compatible image generation and image editing.",
   "author": {
     "name": "jhupo",

@@ -14,15 +14,18 @@ const transport = new StdioClientTransport({
   stderr: "pipe",
 });
 
-const client = new Client({ name: "image-studio-mcp-validator", version: "0.1.0" });
+const client = new Client({ name: "image-studio-mcp-validator", version: "0.2.0" });
 
 try {
   await client.connect(transport);
   const result = await client.listTools();
   const toolNames = result.tools.map((tool) => tool.name).sort();
 
-  if (!toolNames.includes("generate_image") || !toolNames.includes("edit_image")) {
-    throw new Error(`Expected generate_image and edit_image, got: ${toolNames.join(", ")}`);
+  const requiredTools = ["image_studio_doctor", "generate_image", "edit_image"];
+  const missingTools = requiredTools.filter((toolName) => !toolNames.includes(toolName));
+
+  if (missingTools.length > 0) {
+    throw new Error(`Expected ${requiredTools.join(", ")}, got: ${toolNames.join(", ")}`);
   }
 
   console.log(`Validated tools: ${toolNames.join(", ")}`);

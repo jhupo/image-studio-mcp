@@ -25,7 +25,7 @@ const transport = new StdioClientTransport({
   env: process.env,
 });
 
-const client = new Client({ name: "image-studio-mcp-smoke-test", version: "0.1.0" });
+const client = new Client({ name: "image-studio-mcp-smoke-test", version: "0.2.0" });
 
 try {
   await client.connect(transport);

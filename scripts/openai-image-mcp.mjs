@@ -9,10 +9,12 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 
 const SERVER_NAME = "image-studio-mcp";
-const SERVER_VERSION = "0.1.0";
+const SERVER_VERSION = "0.2.0";
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_MODEL = "gpt-image-2";
 const DEFAULT_REQUEST_TIMEOUT_MS = 240000;
+const DEFAULT_MODELS_PREVIEW_LIMIT = 8;
+const DOCTOR_PROBE_PROMPT = "a minimal cyan square icon on a dark background";
 const SUPPORTED_OUTPUT_FORMATS = new Set(["png", "jpeg", "webp"]);
 
 const __filename = fileURLToPath(import.meta.url);
@@ -33,20 +35,37 @@ function getRequestTimeoutMs() {
   return parsed;
 }
 
-function getConfig() {
-  const apiKey = process.env.OPENAI_API_KEY;
+function readConfig() {
+  return {
+    apiKey: String(process.env.OPENAI_API_KEY || "").trim(),
+    baseUrl: normalizeBaseUrl(process.env.OPENAI_BASE_URL || DEFAULT_BASE_URL),
+    model: String(process.env.OPENAI_IMAGE_MODEL || DEFAULT_MODEL).trim() || DEFAULT_MODEL,
+    timeoutMs: getRequestTimeoutMs(),
+  };
+}
 
-  if (!apiKey) {
+function getConfig() {
+  const config = readConfig();
+
+  if (!config.apiKey) {
     throw new Error(
-      "OPENAI_API_KEY is required. Set it in the MCP server environment before using Image Studio MCP."
+      "Configuration problem: OPENAI_API_KEY is missing. Set it in the MCP server environment before using Image Studio MCP."
     );
   }
 
-  return {
-    apiKey,
-    baseUrl: normalizeBaseUrl(process.env.OPENAI_BASE_URL || DEFAULT_BASE_URL),
-    model: process.env.OPENAI_IMAGE_MODEL || DEFAULT_MODEL,
-  };
+  return config;
+}
+
+function maskSecret(secret) {
+  if (!secret) {
+    return "missing";
+  }
+
+  if (secret.length <= 8) {
+    return `${secret[0]}***${secret.at(-1)}`;
+  }
+
+  return `${secret.slice(0, 4)}...${secret.slice(-4)}`;
 }
 
 function maybeSet(object, key, value) {
@@ -123,9 +142,136 @@ async function ensureOutputDirectory(outputDir) {
   return absoluteDir;
 }
 
+function looksLikeHtml(rawText) {
+  return /^\s*</.test(rawText) && /html|doctype/i.test(rawText.slice(0, 200));
+}
+
+function formatTransportError(error) {
+  const message = String(error?.message || error);
+
+  if (error?.name === "TimeoutError" || /timed out|aborted/i.test(message)) {
+    return "Upstream timeout: the request exceeded OPENAI_IMAGE_TIMEOUT_MS before the gateway returned. Try a shorter prompt, lower quality, a smaller size, or raise OPENAI_IMAGE_TIMEOUT_MS.";
+  }
+
+  if (/fetch failed|ENOTFOUND|ECONNREFUSED|ECONNRESET/i.test(message)) {
+    return "Connectivity problem: the image gateway could not be reached. Check OPENAI_BASE_URL, local network access, and whether the proxy is online.";
+  }
+
+  return `Transport problem: ${message}`;
+}
+
+function classifyErrorMessage({ status, message, rawText }) {
+  if (status === 524) {
+    return "Proxy timeout (524): the gateway timed out while waiting for the upstream image job. Try a shorter prompt, lower quality, a smaller size, or a larger OPENAI_IMAGE_TIMEOUT_MS value.";
+  }
+
+  if (looksLikeHtml(rawText)) {
+    return "Base URL problem: the server returned HTML instead of JSON. OPENAI_BASE_URL probably points to a dashboard page instead of an API prefix such as https://host/v1.";
+  }
+
+  if (status === 401 || /invalid_api_key|unauthorized/i.test(message)) {
+    return `Authentication problem (${status}): ${message}. Check that OPENAI_API_KEY belongs to this gateway and still has access.`;
+  }
+
+  if (status === 404) {
+    return `Endpoint problem (404): ${message}. Check that OPENAI_BASE_URL ends with an API prefix like /v1 and that the gateway exposes the image endpoints.`;
+  }
+
+  if (status === 429) {
+    return `Capacity problem (429): ${message}. The gateway or upstream account is rate-limited or overloaded.`;
+  }
+
+  if (/No available compatible accounts/i.test(message)) {
+    return "Proxy resource problem: the gateway reported no available compatible image accounts. This is not a prompt bug; the proxy currently has no usable upstream image capacity.";
+  }
+
+  const snippet = rawText.replace(/\s+/g, " ").trim().slice(0, 180);
+  return snippet ? `${message}. Response preview: ${snippet}` : message;
+}
+
+async function performApiFetch(endpointPath, init = {}) {
+  const { apiKey, baseUrl } = getConfig();
+  const { headers, timeoutMs, ...rest } = init;
+
+  try {
+    return await fetch(`${baseUrl}${endpointPath}`, {
+      ...rest,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        ...headers,
+      },
+      signal: AbortSignal.timeout(timeoutMs || getRequestTimeoutMs()),
+    });
+  } catch (error) {
+    throw new Error(formatTransportError(error));
+  }
+}
+
+async function parseApiResponse(response) {
+  const rawText = await response.text();
+  let payload = null;
+
+  if (rawText) {
+    try {
+      payload = JSON.parse(rawText);
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!response.ok) {
+    const message =
+      payload?.error?.message ||
+      payload?.message ||
+      `OpenAI image request failed with status ${response.status}`;
+    throw new Error(classifyErrorMessage({ status: response.status, message, rawText }));
+  }
+
+  return payload;
+}
+
+async function callJsonImagesEndpoint(endpointPath, body) {
+  const response = await performApiFetch(endpointPath, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  return parseApiResponse(response);
+}
+
+async function callMultipartImagesEndpoint(endpointPath, formData) {
+  const response = await performApiFetch(endpointPath, {
+    method: "POST",
+    body: formData,
+  });
+
+  return parseApiResponse(response);
+}
+
+async function callModelsEndpoint() {
+  const response = await performApiFetch("/models", {
+    method: "GET",
+    timeoutMs: Math.min(getRequestTimeoutMs(), 60000),
+  });
+
+  return parseApiResponse(response);
+}
+
 async function loadFileInput(source, fallbackPrefix = "image") {
   if (/^https?:\/\//i.test(source)) {
-    const response = await fetch(source);
+    let response;
+
+    try {
+      response = await fetch(source, {
+        signal: AbortSignal.timeout(getRequestTimeoutMs()),
+      });
+    } catch (error) {
+      throw new Error(formatTransportError(error));
+    }
+
     if (!response.ok) {
       throw new Error(`Failed to download remote image: ${source} (${response.status})`);
     }
@@ -156,71 +302,6 @@ async function loadFileInput(source, fallbackPrefix = "image") {
   });
 }
 
-async function callJsonImagesEndpoint(endpointPath, body) {
-  const { apiKey, baseUrl } = getConfig();
-  const response = await fetch(`${baseUrl}${endpointPath}`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(getRequestTimeoutMs()),
-  });
-
-  return parseApiResponse(response);
-}
-
-async function callMultipartImagesEndpoint(endpointPath, formData) {
-  const { apiKey, baseUrl } = getConfig();
-  const response = await fetch(`${baseUrl}${endpointPath}`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-    },
-    body: formData,
-    signal: AbortSignal.timeout(getRequestTimeoutMs()),
-  });
-
-  return parseApiResponse(response);
-}
-
-async function parseApiResponse(response) {
-  const rawText = await response.text();
-  let payload = null;
-
-  if (rawText) {
-    try {
-      payload = JSON.parse(rawText);
-    } catch {
-      payload = null;
-    }
-  }
-
-  if (!response.ok) {
-    const message =
-      payload?.error?.message ||
-      payload?.message ||
-      `OpenAI image request failed with status ${response.status}`;
-    throw new Error(enrichHttpErrorMessage(message, response.status, rawText));
-  }
-
-  return payload;
-}
-
-function enrichHttpErrorMessage(message, status, rawText) {
-  if (!rawText) {
-    return message;
-  }
-
-  if (status === 524) {
-    return "Upstream gateway timed out with HTTP 524. The image job likely ran too long. Try a shorter prompt, lower quality, a smaller image size, or a longer OPENAI_IMAGE_TIMEOUT_MS value.";
-  }
-
-  const snippet = rawText.replace(/\s+/g, " ").trim().slice(0, 180);
-  return snippet ? `${message}. Response preview: ${snippet}` : message;
-}
-
 async function persistImageOutput(item, { outputDir, fileStem, index, requestedFormat }) {
   const extension = inferExtension({
     requestedFormat,
@@ -234,9 +315,16 @@ async function persistImageOutput(item, { outputDir, fileStem, index, requestedF
   }
 
   if (item?.url) {
-    const response = await fetch(item.url, {
-      signal: AbortSignal.timeout(getRequestTimeoutMs()),
-    });
+    let response;
+
+    try {
+      response = await fetch(item.url, {
+        signal: AbortSignal.timeout(getRequestTimeoutMs()),
+      });
+    } catch (error) {
+      throw new Error(formatTransportError(error));
+    }
+
     if (!response.ok) {
       throw new Error(`Failed to download generated image from ${item.url}`);
     }
@@ -301,6 +389,93 @@ async function saveResponseImages(payload, { action, outputDir, fileStem, reques
   });
 }
 
+async function buildDoctorReport({
+  probe_generation: probeGeneration,
+  probe_prompt: probePrompt,
+  models_preview_limit: modelsPreviewLimit,
+} = {}) {
+  const config = readConfig();
+  const previewLimit =
+    Number.isInteger(modelsPreviewLimit) && modelsPreviewLimit > 0
+      ? modelsPreviewLimit
+      : DEFAULT_MODELS_PREVIEW_LIMIT;
+  const lines = [
+    "Image Studio Doctor",
+    "MCP transport: reachable. If you can run this tool, the stdio server is already registered enough for the current host to call it.",
+    `Base URL: ${config.baseUrl}`,
+    `Configured model: ${config.model}`,
+    `API key: ${config.apiKey ? `present (${maskSecret(config.apiKey)})` : "missing"}`,
+    `Timeout: ${config.timeoutMs} ms`,
+  ];
+
+  if (!/\/v\d+$/.test(config.baseUrl)) {
+    lines.push("Warning: OPENAI_BASE_URL does not end with /v1. That is often a sign the value points to a dashboard page instead of an API prefix.");
+  }
+
+  if (!config.apiKey) {
+    lines.push("Summary: not ready.");
+    lines.push("Next step: set OPENAI_API_KEY in the MCP server environment, then rerun image_studio_doctor.");
+    return lines.join("\n");
+  }
+
+  try {
+    const payload = await callModelsEndpoint();
+    const modelIds = Array.isArray(payload?.data)
+      ? payload.data.map((item) => item?.id).filter(Boolean).sort()
+      : [];
+    const imageModelIds = modelIds.filter((id) => /image|dall-e/i.test(id));
+
+    lines.push(`Models endpoint: ok (${modelIds.length} models returned)`);
+    lines.push(
+      `Models preview: ${modelIds.slice(0, previewLimit).join(", ") || "(none returned by gateway)"}`
+    );
+    lines.push(
+      `Image-like models: ${imageModelIds.slice(0, previewLimit).join(", ") || "(none detected by name)"}`
+    );
+    lines.push(
+      modelIds.includes(config.model)
+        ? `Configured model status: found (${config.model})`
+        : `Configured model status: not listed by /models (${config.model})`
+    );
+  } catch (error) {
+    lines.push("Models endpoint: failed");
+    lines.push(`Diagnosis: ${error.message}`);
+    lines.push("Summary: partially configured, but the gateway checks did not pass.");
+    return lines.join("\n");
+  }
+
+  if (probeGeneration) {
+    try {
+      const payload = await callJsonImagesEndpoint("/images/generations", {
+        model: config.model,
+        prompt: probePrompt || DOCTOR_PROBE_PROMPT,
+        n: 1,
+        size: "1024x1024",
+      });
+      const revisedPrompt =
+        Array.isArray(payload?.data) && payload.data[0]?.revised_prompt
+          ? payload.data[0].revised_prompt
+          : null;
+
+      lines.push("Generation probe: ok (the gateway accepted a real billable image generation request)");
+      if (revisedPrompt) {
+        lines.push(`Generation probe revised prompt: ${revisedPrompt}`);
+      }
+      lines.push("Summary: ready.");
+      return lines.join("\n");
+    } catch (error) {
+      lines.push("Generation probe: failed");
+      lines.push(`Diagnosis: ${error.message}`);
+      lines.push("Summary: configuration exists, but a real image job still failed.");
+      return lines.join("\n");
+    }
+  }
+
+  lines.push("Generation probe: skipped (set probe_generation=true when you want a billable end-to-end test)");
+  lines.push("Summary: likely ready. Run a real generation or enable probe_generation to confirm the full path.");
+  return lines.join("\n");
+}
+
 const generateImageSchema = {
   prompt: z.string().min(1),
   output_dir: z.string().min(1),
@@ -330,10 +505,33 @@ const editImageSchema = {
   user: z.string().min(1).optional(),
 };
 
+const doctorSchema = {
+  probe_generation: z.boolean().optional(),
+  probe_prompt: z.string().min(1).optional(),
+  models_preview_limit: z.number().int().min(1).max(20).optional(),
+};
+
 const server = new McpServer({
   name: SERVER_NAME,
   version: SERVER_VERSION,
 });
+
+server.registerTool(
+  "image_studio_doctor",
+  {
+    description:
+      "Run a connectivity and configuration check for Image Studio MCP. This verifies that the current host can reach the MCP server, reports whether OPENAI_API_KEY is present, checks the configured base URL, queries /models, and can optionally run a billable generation probe.",
+    inputSchema: doctorSchema,
+  },
+  async (args) => ({
+    content: [
+      {
+        type: "text",
+        text: await buildDoctorReport(args),
+      },
+    ],
+  })
+);
 
 server.registerTool(
   "generate_image",
